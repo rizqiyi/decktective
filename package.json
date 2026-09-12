@@ -1,0 +1,28 @@
+{
+  "name": "decktective",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Turns day-to-day activity into a weekly deck (PPTX + PDF) from one intermediate representation.",
+  "engines": {
+    "node": ">=26"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "node --test",
+    "test:watch": "node --test --watch"
+  },
+  "devDependencies": {
+    "@types/node": "^26.5.1",
+    "@types/pdfkit": "^0.17.6",
+    "typescript": "^7.0.2"
+  },
+  "dependencies": {
+    "@resvg/resvg-js": "^2.6.2",
+    "opentype.js": "^2.0.0",
+    "pdf-lib": "^1.17.1",
+    "pdfkit": "^0.20.2",
+    "pptxgenjs": "^4.0.1",
+    "satori": "^0.33.4"
+  }
+}
