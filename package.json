@@ -1,6 +1,6 @@
 {
   "name": "decktective",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "type": "module",
   "description": "Build a weekly activity deck (PPTX) from a git repository by filling a .pptx template.",
   "engines": {
@@ -54,5 +54,18 @@
   ],
   "bin": {
     "decktective": "./dist/src/cli.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/rizqiyi/decktective.git"
+  },
+  "homepage": "https://github.com/rizqiyi/decktective#readme",
+  "bugs": {
+    "url": "https://github.com/rizqiyi/decktective/issues"
+  },
+  "publishConfig": {
+    "access": "public",
+    "tag": "latest",
+    "registry": "https://registry.npmjs.org/"
   }
 }
