@@ -4,7 +4,6 @@ out-filled
 .DS_Store
 *.tsbuildinfo
 ~$*.pptx
-dist
 *.tgz
 
 # Never commit credentials.

@@ -14,6 +14,7 @@
  * time, and is not installed here as a dependency.
  */
 import { spawn } from "node:child_process";
+import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 
 import { findPackageRoot } from "../src/package-root.ts";
@@ -21,11 +22,19 @@ import { findPackageRoot } from "../src/package-root.ts";
 /** Package root, derived from this module — never from cwd. */
 const PACKAGE_ROOT = findPackageRoot();
 /**
- * The COMPILED CLI. Node refuses to type-strip files under node_modules, so an
- * installed package must run emitted JavaScript — shipping `.ts` works only in
- * a checkout, which is exactly the bug that shipped in 0.1.0.
+ * The CLI to spawn, and the runtime to spawn it with.
+ *
+ * Node refuses to type-strip inside node_modules (ERR_UNSUPPORTED_NODE_MODULES_TYPE_STRIPPING),
+ * so an npm install must run the COMPILED CLI — shipping `.ts` only works in a
+ * checkout, which is the bug that shipped in 0.1.0. A git or local install may
+ * have no build output, so fall back to the source plus Bun, which type-strips
+ * anywhere. Node cannot run the fallback.
  */
-const CLI = resolve(PACKAGE_ROOT, "dist", "src", "cli.js");
+const DIST_CLI = resolve(PACKAGE_ROOT, "dist", "src", "cli.js");
+const SRC_CLI = resolve(PACKAGE_ROOT, "src", "cli.ts");
+const useDist = existsSync(DIST_CLI);
+const RUNTIME = useDist ? "node" : "bun";
+const CLI = useDist ? DIST_CLI : SRC_CLI;
 const TEMPLATE = resolve(PACKAGE_ROOT, "templates", "template1.pptx");
 
 type RunResult = { code: number; stdout: string; stderr: string };
@@ -38,7 +47,7 @@ type RunResult = { code: number; stdout: string; stderr: string };
  */
 function runCli(args: string[], signal?: AbortSignal): Promise<RunResult> {
   const { promise, resolve } = Promise.withResolvers<RunResult>();
-  const child = spawn("node", [CLI, ...args], {
+  const child = spawn(RUNTIME, [CLI, ...args], {
     cwd: PACKAGE_ROOT,
     ...(signal ? { signal } : {}),
   });
