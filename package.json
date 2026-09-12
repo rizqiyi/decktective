@@ -1,6 +1,6 @@
 {
   "name": "decktective",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "type": "module",
   "description": "Build a weekly activity deck (PPTX) from a git repository by filling a .pptx template.",
   "engines": {
@@ -29,7 +29,7 @@
   },
   "omp": {
     "extensions": [
-      "./extensions/decktective.ts"
+      "./extensions"
     ],
     "skills": [
       "./skills"
@@ -38,7 +38,7 @@
   "license": "MIT",
   "pi": {
     "extensions": [
-      "./extensions/decktective.ts"
+      "./extensions"
     ],
     "skills": [
       "./skills"
