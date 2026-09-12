@@ -14,12 +14,18 @@
  * time, and is not installed here as a dependency.
  */
 import { spawn } from "node:child_process";
-import { dirname, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { resolve } from "node:path";
+
+import { findPackageRoot } from "../src/package-root.ts";
 
 /** Package root, derived from this module — never from cwd. */
-const PACKAGE_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const CLI = resolve(PACKAGE_ROOT, "src", "cli.ts");
+const PACKAGE_ROOT = findPackageRoot();
+/**
+ * The COMPILED CLI. Node refuses to type-strip files under node_modules, so an
+ * installed package must run emitted JavaScript — shipping `.ts` works only in
+ * a checkout, which is exactly the bug that shipped in 0.1.0.
+ */
+const CLI = resolve(PACKAGE_ROOT, "dist", "src", "cli.js");
 const TEMPLATE = resolve(PACKAGE_ROOT, "templates", "template1.pptx");
 
 type RunResult = { code: number; stdout: string; stderr: string };

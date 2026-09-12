@@ -6,14 +6,15 @@
  * treatment as a hand-written one and cannot reach the renderer unchecked.
  */
 import { readFile } from "node:fs/promises";
-import { dirname, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join, resolve } from "node:path";
+
+import { findPackageRoot } from "../package-root.ts";
 
 import { parseTemplate } from "./validate.ts";
 import type { DeckTemplate } from "../ir/types.ts";
 
-/** Repo root, derived from this module — not from the process cwd. */
-const PACKAGE_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
+/** Package root, derived from this module — not from the process cwd. */
+const PACKAGE_ROOT = findPackageRoot();
 
 export const DEFAULT_TEMPLATE_PATH = join(PACKAGE_ROOT, "templates", "weekly.template.json");
 

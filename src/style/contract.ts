@@ -14,12 +14,13 @@
  */
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
-import { dirname, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { dirname, join } from "node:path";
+
+import { findPackageRoot } from "../package-root.ts";
 
 export const STYLE_SKILL_NAME = "i-have-adhd";
 
-const PACKAGE_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
+const PACKAGE_ROOT = findPackageRoot();
 
 /**
  * The skill as shipped in this package's `skills/` directory — the same path omp

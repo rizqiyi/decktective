@@ -1,6 +1,6 @@
 {
   "name": "decktective",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "type": "module",
   "description": "Build a weekly activity deck (PPTX) from a git repository by filling a .pptx template.",
   "engines": {
@@ -9,7 +9,10 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "node --test",
-    "test:watch": "node --test --watch"
+    "test:watch": "node --test --watch",
+    "build": "tsc -p tsconfig.build.json",
+    "prepublishOnly": "npm run build",
+    "prepack": "npm run build"
   },
   "devDependencies": {
     "@types/node": "^26.5.1",
@@ -26,13 +29,13 @@
   },
   "omp": {
     "extensions": [
-      "./extensions/decktective.ts"
+      "./dist/extensions/decktective.js"
     ]
   },
   "license": "MIT",
   "pi": {
     "extensions": [
-      "./extensions/decktective.ts"
+      "./dist/extensions/decktective.js"
     ]
   },
   "keywords": [
