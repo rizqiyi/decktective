@@ -4,3 +4,7 @@ out-filled
 .DS_Store
 *.tsbuildinfo
 ~$*.pptx
+
+# Never commit credentials.
+.npmrc
+**/.npmrc
