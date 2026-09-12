@@ -1,0 +1,10 @@
+# Dev-only: tests and local notes must not ship.
+**/*.test.ts
+reference.md
+reference1.md
+brainstorm.md
+out/
+out-filled/
+.DS_Store
+~$*.pptx
+*.tsbuildinfo

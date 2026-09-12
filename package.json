@@ -30,17 +30,6 @@
     ]
   },
   "license": "MIT",
-  "files": [
-    "extensions/",
-    "agents/",
-    "skills/",
-    "src/",
-    "templates/",
-    "assets/",
-    "scripts/",
-    "README.md",
-    "AGENTS.md"
-  ],
   "pi": {
     "extensions": [
       "./extensions/decktective.ts"
