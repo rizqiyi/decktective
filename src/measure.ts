@@ -84,16 +84,6 @@ export function missingGlyphs(
   return missing;
 }
 
-/** Advance width of a single line, in points. */
-export function measureWidthPt(
-  ctx: MeasureCtx,
-  text: string,
-  sizePt: number,
-  weight: FontWeight = 400,
-): number {
-  return unitWidth(ctx, text, weight) * sizePt;
-}
-
 /** Natural line height for one line at this size, in points. */
 export function lineHeightPt(
   ctx: MeasureCtx,

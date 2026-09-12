@@ -11,6 +11,8 @@
     "verbatimModuleSyntax": true,
     "erasableSyntaxOnly": true,
     "noUncheckedIndexedAccess": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true
   },

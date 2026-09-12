@@ -1,2 +1,5 @@
 node_modules
 out
+out-filled
+.DS_Store
+*.tsbuildinfo

@@ -13,7 +13,7 @@ Status: **implemented and working end-to-end.** A real repo of 14 commits produc
 ```
 git / manual  ->  DayEntry[]      facts pass, deterministic, numbers frozen
 DayEntry[]    ->  Narrative       YOUR pass, only if commit subjects are messy
-Narrative     ->  DeckIR          fixed skeleton
+Narrative     ->  DeckIR          template skeleton (DATA, not code)
 DeckIR        ->  RenderPlan      layout resolved ONCE; overflow + glyphs enforced
 RenderPlan    ->  PPTX + PDF      dumb emitters, no layout decisions
 ```
@@ -36,8 +36,9 @@ flowchart LR
 
 - `src/ir/types.ts` — every shared type (`DeckIR`, `Slide`, `Block`, `DayEntry`, `DayMetrics`, `Window`, `SourceAdapter`, `NarrativeEngine`). Read it first.
 - `src/render/types.ts` — `RenderPlan` / `DrawOp` contract between resolver and emitters.
-- `src/theme.ts` — design tokens, grid math, the only unit conversions.
-- `src/layout/spec.ts` — which slots each layout exposes and what block kinds they accept.
+- `src/theme.ts` — grid math, `roleSizePt`, and the only unit conversions.
+- `templates/weekly.template.json` — **the deck's shape** (theme, layouts, skeleton).
+- `src/template/validate.ts` — untrusted-template boundary; path-addressed errors.
 
 ## Key Directories
 
@@ -46,9 +47,11 @@ flowchart LR
 | `src/ir/` | IR type contract — the one place shared types live. |
 | `src/sources/` | `git.ts` adapter, `profile.ts` day classifier, its tests. |
 | `src/narrative/` | `template.ts` deterministic engine, `validate.ts` fact-lock gate. |
-| `src/layout/` | `spec.ts` slot geometry, `resolve.ts` the resolver + gates. |
+| `src/layout/` | `resolve.ts` — the resolver + overflow/glyph gates. |
+| `src/template/` | `validate.ts` untrusted-JSON boundary, `load.ts` default + `--template`. |
+| `templates/` | The shipped deck template. |
 | `src/render/` | `types.ts` plan contract, `pptx.ts`, `pdf.ts` emitters. |
-| `src/deck/` | `build.ts` — narrative + facts to `DeckIR`. |
+| `src/deck/` | `build.ts` — template interpreter: narrative + facts to `DeckIR`. |
 | `assets/fonts/` | Bundled Inter TTF (400/700). Required; see conventions. |
 | `.omp/agents/` | The harness agent definition. |
 
@@ -59,8 +62,11 @@ node src/cli.ts --repo <path> --preset this --out out -y   # this week
 node src/cli.ts --repo <path> --preset last --pptx-only -y
 node src/cli.ts --repo <path> --start <iso> --end <iso> --tz Asia/Jakarta -y
 
+node src/cli.ts --dump-template > my.template.json   # resolved default as a base
+node src/cli.ts --repo <path> --preset this --template my.template.json -y
+
 npx tsc --noEmit        # typecheck (must be clean)
-node --test             # all tests (~0.3s)
+node --test             # all tests (~1.3s)
 node --test src/window.test.ts
 ```
 
@@ -81,7 +87,9 @@ Outputs three files sharing a stem: `<date>_<ISO-week>.json` (the IR), `.pptx`, 
 
 **Patterns:**
 
-- **Shape-first layout.** Never hand-place text. A block goes in a layout slot; `spec.ts` owns the rect. `resolvePlan` rejects a block whose kind the slot does not accept.
+- **Shape-first layout, declared as data.** Never hand-place text. A block goes in a layout slot; the template owns the grid rect. `resolvePlan` rejects a block whose kind the slot does not accept.
+- **The template is data, and the fill vocabulary is closed.** A template may recombine data the pipeline computes but cannot introduce a new source; slot `accepts` is checked against what each fill produces. This is what makes model-generated templates safe. Slots use **grid coordinates**, never inches, so changing `theme.grid` re-flows every layout.
+- **Validation errors are path-addressed** (`skeleton[3].fill.heading: ...`) because the likely author of a new template is a model, and "invalid template" is unfixable.
 - **Fail loudly on overflow and tofu.** `OverflowError` and `MissingGlyphError` are features. Text is measured against the bundled font; if it cannot fit (autofit ladder down to 12pt) or a character has no glyph (glyph id 0), the build fails. Never weaken these to make a deck render.
 - **Tiny helpers get inlined** (`ts-no-tiny-functions`). Don't publish a contract via `ReturnType<typeof fn>` — name and export the type (`ts-no-return-type`).
 - **Pure functions over classes.** `classify(metrics)` is pure and testable without git. Classes exist only where state demands it (`GitSource`).
@@ -103,8 +111,10 @@ Outputs three files sharing a stem: `<date>_<ISO-week>.json` (the IR), `.pptx`, 
 | `src/sources/git.ts` | Git adapter — two-pass `--numstat` collection, warnings, profiles. |
 | `src/sources/profile.ts` | Pure `classify()`; all thresholds in `PROFILE_THRESHOLDS`. |
 | `src/layout/resolve.ts` | **The keystone.** Layout, autofit, overflow and glyph gates. |
+| `src/template/validate.ts` | Untrusted-template boundary; path-addressed rejections. |
+| `templates/weekly.template.json` | The one shipped template; the deck's shape as data. |
 | `src/narrative/validate.ts` | Fact-lock gate (`InventedNumberError`). |
-| `src/deck/build.ts` | Fixed skeleton: title → agenda → metrics → per-day → themes → risks → next → appendix. |
+| `src/deck/build.ts` | Interprets the template skeleton into slides. |
 | `src/measure.ts` | fontkit measurement, unit-width cache, glyph coverage. |
 | `brainstorm.md` | Design record; §7 = resolved decisions. |
 | `.omp/agents/decktective.md` | Harness agent definition. |
@@ -121,12 +131,14 @@ Outputs three files sharing a stem: `<date>_<ISO-week>.json` (the IR), `.pptx`, 
 
 ## Testing & QA
 
-`node --test` with `node:test` + `node:assert/strict` (no jest/vitest). Tests are fast (~0.3s) and offline — **no git repo or model required**.
+`node --test` with `node:test` + `node:assert/strict` (no jest/vitest). Tests are fast (~1.3s) and offline — **no git repo or model required**.
 
-Coverage today (35 tests):
+Coverage today (61 tests):
 
 - `src/sources/git.test.ts` — the pure classifier: every profile reachable, precedence, zero-division safety.
-- `src/window.test.ts` — half-open boundaries, Monday edges, cross-timezone offsets, presets.
+- `src/sources/diagnostics.test.ts` — repo-level warnings surface even on an empty window.
+- `src/window.test.ts` — half-open boundaries, Monday edges, cross-timezone offsets, histogram scale.
+- `src/template/validate.test.ts` — the shipped template is valid and ordered; every rejection path.
 - `src/pipeline.test.ts` — fact-lock rejections, overflow + glyph gates, plan construction.
 
 What to test: behavior and invariants (a number must be rejected; text that cannot fit must throw), not plumbing. Inject `TemplateNarrative` for determinism — model-written prose is not byte-reproducible, but numbers, dates, refs, slide count, and layout are.

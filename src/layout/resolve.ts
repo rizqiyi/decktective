@@ -9,8 +9,10 @@ import { inToPt } from "../theme.ts";
 import {
   measureCtx, fitSizePt, wrapLines, lineHeightPt, missingGlyphs, type MeasureCtx,
 } from "../measure.ts";
-import { layoutSpec, roleSizePt, type SlotRole } from "./spec.ts";
-import type { Block, DeckIR, Slide, Theme } from "../ir/types.ts";
+import { cellRect, roleSizePt } from "../theme.ts";
+import type {
+  Block, DeckIR, LayoutSpec, Slide, SlotRole, Theme,
+} from "../ir/types.ts";
 import type {
   BulletsOp, DrawOp, RenderPlan, SlidePlan, TextOp,
 } from "../render/types.ts";
@@ -201,8 +203,13 @@ function blockOps(
   }
 }
 
-function slidePlan(ctx: MeasureCtx, slide: Slide, t: Theme, index: number): SlidePlan {
-  const spec = layoutSpec(slide.layout, t);
+function slidePlan(
+  ctx: MeasureCtx,
+  slide: Slide,
+  spec: LayoutSpec,
+  t: Theme,
+  index: number,
+): SlidePlan {
   const ops: DrawOp[] = [];
 
   // Full-bleed background first so every later op paints on top.
@@ -221,7 +228,8 @@ function slidePlan(ctx: MeasureCtx, slide: Slide, t: Theme, index: number): Slid
         `${where}: layout does not accept block kind "${block.kind}" (accepts: ${slot.accepts.join(", ")})`,
       );
     }
-    ops.push(...blockOps(ctx, block, slot.rect, slot.role, t, where));
+    const rect = cellRect(t, slot.col, slot.row, slot.colSpan, slot.rowSpan);
+    ops.push(...blockOps(ctx, block, rect, slot.role, t, where));
   }
 
   // Title rule, drawn after background but before nothing else depends on it.
@@ -240,10 +248,20 @@ function slidePlan(ctx: MeasureCtx, slide: Slide, t: Theme, index: number): Slid
 }
 
 export function resolvePlan(ir: DeckIR): RenderPlan {
-  const t = ir.theme;
+  const t = ir.template.theme;
   const ctx = measureCtx(t.fonts.regular, t.fonts.bold);
+  const byId = new Map(ir.template.layouts.map((l) => [l.id, l]));
+
   return {
     theme: t,
-    slides: ir.slides.map((s, i) => slidePlan(ctx, s, t, i)),
+    slides: ir.slides.map((s, i) => {
+      const spec = byId.get(s.layout);
+      if (!spec) {
+        throw new OverflowError(
+          `slide ${i + 1}: template has no layout "${s.layout}" (has: ${[...byId.keys()].join(", ")})`,
+        );
+      }
+      return slidePlan(ctx, s, spec, t, i);
+    }),
   };
 }

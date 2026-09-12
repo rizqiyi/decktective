@@ -7,7 +7,7 @@
  * requirement.
  */
 import type {
-  DayEntry, DayItem, DayNarrative, DayProfile, Narrative,
+  DayEntry, DayItem, DayNarrative, Narrative,
   NarrativeEngine, ThemeCluster, Window,
 } from "../ir/types.ts";
 
@@ -61,15 +61,6 @@ function headlineFor(day: DayEntry): string {
   const base = top ? top.text : "Work in progress";
   return n === 1 ? `${base}` : `${n} commits, ${shape} work — ${base}`;
 }
-
-/** Why a day was classified as it was — shown next to the profile name. */
-export const PROFILE_NOTE: Partial<Record<DayProfile, string>> = {
-  heavy: "few commits, large change",
-  drop: "one commit dominates — verify before reporting",
-  rename: "mostly moves, not new work",
-  burst: "many small incremental commits",
-  scattered: "broad but shallow across files",
-};
 
 function clusterThemes(days: DayEntry[]): ThemeCluster[] {
   const byKind = new Map<string, Set<string>>();

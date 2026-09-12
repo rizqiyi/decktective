@@ -6,45 +6,24 @@
  *   pdfkit    -> inches * 72 (points)
  *   satori    -> inches * 96 (px, at 1280x720 for a 13.333x7.5in canvas)
  */
-import type { Theme } from "./ir/types.ts";
+import type { SlotRole, Theme } from "./ir/types.ts";
+
+/** Font size for a slot role, from theme tokens. */
+export function roleSizePt(role: SlotRole, t: Theme): number {
+  switch (role) {
+    case "title": return t.type.titlePt;
+    case "heading": return t.type.headingPt;
+    case "hero": return t.type.titlePt * 2;
+    case "metrics": return t.type.headingPt;
+    case "caption": return t.type.captionPt;
+    case "evidence": return t.type.captionPt;
+    case "body": return t.type.bodyPt;
+  }
+}
 
 export const IN_TO_PT = 72;
-export const IN_TO_PX = 96;
 
 export const inToPt = (inches: number): number => inches * IN_TO_PT;
-export const inToPx = (inches: number): number => inches * IN_TO_PX;
-export const ptToIn = (pt: number): number => pt / 72;
-
-export const DEFAULT_THEME: Theme = {
-  colors: {
-    bg: "#FFFFFF",
-    fg: "#111111",
-    muted: "#555555",
-    accent: "#1F6FEB",
-    rule: "#DDDDDD",
-  },
-  fonts: {
-    family: "Inter",
-    regular: "assets/fonts/inter-400.ttf",
-    bold: "assets/fonts/inter-700.ttf",
-  },
-  type: {
-    titlePt: 32,
-    headingPt: 24,
-    bodyPt: 18,
-    captionPt: 12,
-  },
-  grid: {
-    cols: 12,
-    rows: 7,
-    marginIn: 0.6,
-    gutterIn: 0.2,
-  },
-  canvas: {
-    widthIn: 13.333,
-    heightIn: 7.5,
-  },
-};
 
 /** A rectangle in inches. Converted per emitter at the boundary. */
 export type Rect = { xIn: number; yIn: number; wIn: number; hIn: number };

@@ -1,0 +1,162 @@
+{
+  "id": "weekly",
+  "name": "Weekly Report",
+  "version": 1,
+  "theme": {
+    "colors": {
+      "bg": "#FFFFFF",
+      "fg": "#111111",
+      "muted": "#555555",
+      "accent": "#1F6FEB",
+      "rule": "#DDDDDD"
+    },
+    "fonts": {
+      "family": "Inter",
+      "regular": "assets/fonts/inter-400.ttf",
+      "bold": "assets/fonts/inter-700.ttf"
+    },
+    "type": {
+      "titlePt": 32,
+      "headingPt": 24,
+      "bodyPt": 18,
+      "captionPt": 12
+    },
+    "grid": { "cols": 12, "rows": 7, "marginIn": 0.6, "gutterIn": 0.2 },
+    "canvas": { "widthIn": 13.333, "heightIn": 7.5 }
+  },
+  "layouts": [
+    {
+      "id": "title",
+      "slots": [
+        { "key": "title", "role": "title", "col": 0, "row": 1, "colSpan": 12, "rowSpan": 2, "accepts": ["text"] },
+        { "key": "subtitle", "role": "caption", "col": 0, "row": 3, "colSpan": 12, "rowSpan": 1, "accepts": ["text"] }
+      ]
+    },
+    {
+      "id": "agenda",
+      "slots": [
+        { "key": "heading", "role": "heading", "col": 0, "row": 0, "colSpan": 12, "rowSpan": 1, "accepts": ["text"] },
+        { "key": "bullets", "role": "body", "col": 0, "row": 1, "colSpan": 12, "rowSpan": 6, "accepts": ["bullets"] }
+      ]
+    },
+    {
+      "id": "metrics",
+      "slots": [
+        { "key": "heading", "role": "heading", "col": 0, "row": 0, "colSpan": 12, "rowSpan": 1, "accepts": ["text"] },
+        { "key": "metrics", "role": "metrics", "col": 0, "row": 1, "colSpan": 12, "rowSpan": 2, "accepts": ["metrics"] },
+        { "key": "breakdown", "role": "body", "col": 0, "row": 3, "colSpan": 12, "rowSpan": 3, "accepts": ["bullets"] },
+        { "key": "note", "role": "caption", "col": 0, "row": 6, "colSpan": 12, "rowSpan": 1, "accepts": ["text"] }
+      ]
+    },
+    {
+      "id": "bullets",
+      "slots": [
+        { "key": "heading", "role": "heading", "col": 0, "row": 0, "colSpan": 12, "rowSpan": 1, "accepts": ["text"] },
+        { "key": "bullets", "role": "body", "col": 0, "row": 1, "colSpan": 12, "rowSpan": 6, "accepts": ["bullets"] }
+      ]
+    },
+    {
+      "id": "timeline",
+      "slots": [
+        { "key": "heading", "role": "heading", "col": 0, "row": 0, "colSpan": 12, "rowSpan": 1, "accepts": ["text"] },
+        { "key": "bullets", "role": "body", "col": 0, "row": 1, "colSpan": 12, "rowSpan": 6, "accepts": ["bullets"] }
+      ]
+    },
+    {
+      "id": "hero",
+      "slots": [
+        { "key": "heading", "role": "heading", "col": 0, "row": 0, "colSpan": 12, "rowSpan": 1, "accepts": ["text"] },
+        { "key": "hero", "role": "hero", "col": 0, "row": 2, "colSpan": 12, "rowSpan": 2, "accepts": ["text", "metrics"] },
+        { "key": "note", "role": "caption", "col": 0, "row": 5, "colSpan": 12, "rowSpan": 1, "accepts": ["text"] }
+      ]
+    },
+    {
+      "id": "appendix",
+      "slots": [
+        { "key": "heading", "role": "heading", "col": 0, "row": 0, "colSpan": 12, "rowSpan": 1, "accepts": ["text"] },
+        { "key": "evidence", "role": "evidence", "col": 0, "row": 1, "colSpan": 12, "rowSpan": 6, "accepts": ["evidence"] }
+      ]
+    }
+  ],
+  "skeleton": [
+    {
+      "id": "cover",
+      "layout": "title",
+      "title": "{title}",
+      "fill": {
+        "title": { "kind": "deck-title" },
+        "subtitle": { "kind": "window-label" }
+      }
+    },
+    {
+      "id": "agenda",
+      "layout": "agenda",
+      "title": "The week",
+      "fill": {
+        "heading": { "kind": "text", "text": "The week" },
+        "bullets": { "kind": "agenda" }
+      }
+    },
+    {
+      "id": "metrics",
+      "layout": "metrics",
+      "title": "Headline",
+      "fill": {
+        "heading": { "kind": "text", "text": "Headline" },
+        "metrics": { "kind": "metrics" },
+        "breakdown": { "kind": "per-day-breakdown" },
+        "note": { "kind": "summary" }
+      }
+    },
+    {
+      "id": "day",
+      "layout": "bullets",
+      "repeat": "per-day",
+      "title": "{date}",
+      "fill": {
+        "heading": { "kind": "day-heading" },
+        "bullets": { "kind": "day-items" }
+      }
+    },
+    {
+      "id": "themes",
+      "layout": "bullets",
+      "title": "Themes",
+      "when": "has-themes",
+      "fill": {
+        "heading": { "kind": "text", "text": "Themes" },
+        "bullets": { "kind": "themes" }
+      }
+    },
+    {
+      "id": "risks",
+      "layout": "bullets",
+      "title": "Risks & blockers",
+      "when": "has-risks",
+      "fill": {
+        "heading": { "kind": "text", "text": "Risks & blockers" },
+        "bullets": { "kind": "risks" }
+      }
+    },
+    {
+      "id": "next-week",
+      "layout": "bullets",
+      "title": "Next week",
+      "when": "has-next-week",
+      "fill": {
+        "heading": { "kind": "text", "text": "Next week" },
+        "bullets": { "kind": "next-week" }
+      }
+    },
+    {
+      "id": "appendix",
+      "layout": "appendix",
+      "title": "Appendix {page}",
+      "when": "has-evidence",
+      "fill": {
+        "heading": { "kind": "text", "text": "Appendix {page} — evidence" },
+        "evidence": { "kind": "evidence" }
+      }
+    }
+  ]
+}

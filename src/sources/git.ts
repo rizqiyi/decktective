@@ -34,7 +34,12 @@ export type GitCollectOpts = CollectOpts & {
 const FIELD_SEP = "\x1f";
 /** Byte emitted by `%x1e` in the churn pass; never legal in a path or SHA. */
 const RECORD_LEAD = 0x1e;
-const NAME_FORMAT = "--pretty=format:%H%x1f%ad%x1f%cd%x1f%an%x1f%s";
+const RECORD_LEAD_CHAR = String.fromCharCode(RECORD_LEAD);
+/**
+ * Records are delimited by `%x1e` rather than newlines: `%b` is multi-line, so
+ * a line-oriented parse would shred any commit that has a body.
+ */
+const NAME_FORMAT = "--pretty=format:%x1e%H%x1f%ad%x1f%cd%x1f%an%x1f%s%x1f%b";
 const CHURN_FORMAT = "--pretty=format:%x1e%H";
 const SUBJECT_PREFIX = /^([a-z]+)(?:\([^()]*\))?!?:\s+/;
 
@@ -60,6 +65,8 @@ type RawCommit = {
   /** Committer date in the window TZ, `iso-strict-local`. */
   committerDate: string;
   subject: string;
+  /** Commit message body; often the only record of *why* a change happened. */
+  body: string;
 };
 
 type Churn = {
@@ -127,15 +134,6 @@ export class GitSource implements SourceAdapter {
     const churnBySha =
       churnOut === undefined ? undefined : parseChurn(churnOut, exclude);
 
-    const globalWarnings: string[] = [];
-    if (await this.isShallow()) {
-      globalWarnings.push("shallow clone: history before the graft point is unavailable");
-    }
-    // No churn pass ran, so nothing was actually suppressed.
-    if (!commitsOnly && opts?.ignoreWhitespace === true) {
-      globalWarnings.push("whitespace-only changes suppressed (-w)");
-    }
-
     const days = new Map<IsoDate, DayAgg>();
     for (const commit of commits) {
       const date = commit.authorDate.slice(0, 10);
@@ -190,7 +188,7 @@ export class GitSource implements SourceAdapter {
         maxCommitShare: grossChurn === 0 ? 0 : agg.maxCommitSize / grossChurn,
       };
 
-      const warnings = [...globalWarnings, ...agg.warnings];
+      const warnings = [...agg.warnings];
       if (agg.excludedPrefixes.size > 0) {
         warnings.push(
           `excluded paths matching: ${[...agg.excludedPrefixes].sort().join(", ")}`,
@@ -211,6 +209,9 @@ export class GitSource implements SourceAdapter {
           item.deletions = churn.deletions;
           item.files = churn.paths.size;
         }
+        // Bodies can be long trailers ("Signed-off-by", "Co-authored-by");
+        // keep the prose, drop the bookkeeping, and cap what we carry.
+        if (commit.body !== "") item.body = cleanBody(commit.body);
         return item;
       });
 
@@ -259,6 +260,21 @@ export class GitSource implements SourceAdapter {
     });
   }
 
+  /**
+   * Repo-level warnings, independent of any window. Cheap: no history walk.
+   */
+  async diagnostics(opts?: CollectOpts): Promise<string[]> {
+    const out: string[] = [];
+    if (await this.isShallow()) {
+      out.push("shallow clone: history before the graft point is unavailable");
+    }
+    // Nothing was suppressed if the churn pass never ran.
+    if (!opts?.commitsOnly && opts?.ignoreWhitespace === true) {
+      out.push("whitespace-only changes suppressed (-w)");
+    }
+    return out;
+  }
+
   private async isShallow(): Promise<boolean> {
     try {
       return (await stat(join(this.path, ".git", "shallow"))).isFile();
@@ -270,23 +286,23 @@ export class GitSource implements SourceAdapter {
 
 function parseCommits(out: string): RawCommit[] {
   const commits: RawCommit[] = [];
-  for (const raw of out.split("\n")) {
-    const line = raw.endsWith("\r") ? raw.slice(0, -1) : raw;
-    if (line.length === 0) continue;
-    const fields = line.split(FIELD_SEP);
+  // Split records first; only then split fields, so a multi-line body survives.
+  for (const record of out.split(RECORD_LEAD_CHAR)) {
+    const trimmed = record.replace(/^\n/, "");
+    if (trimmed.trim() === "") continue;
+    const fields = trimmed.split(FIELD_SEP);
     const sha = fields[0];
     const authorDate = fields[1];
     const committerDate = fields[2];
-    if (sha === undefined || authorDate === undefined || committerDate === undefined) {
-      continue;
-    }
+    if (!sha || !authorDate || !committerDate) continue;
     commits.push({
       sha,
       author: fields[3] ?? "",
       authorDate,
       committerDate,
-      // `%s` is the last field: rejoining keeps any separator it contains.
-      subject: fields.slice(4).join(FIELD_SEP),
+      subject: fields[4] ?? "",
+      // The body is last: rejoin so a separator inside it is preserved.
+      body: fields.slice(5).join(FIELD_SEP).trim(),
     });
   }
   return commits;
@@ -367,6 +383,15 @@ function matchingPrefix(
     }
   }
   return undefined;
+}
+
+/** Drop trailer lines and cap length; a body is evidence, not an essay. */
+function cleanBody(body: string): string {
+  const kept = body
+    .split("\n")
+    .map((l) => l.trim())
+    .filter((l) => l !== "" && !/^[A-Za-z-]+:\s/.test(l));
+  return kept.join(" ").slice(0, 1200);
 }
 
 function parseSubject(subject: string): { kind: ItemKind; text: string } {

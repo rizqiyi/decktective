@@ -459,3 +459,172 @@ Tradeoff accepted: bundler resolution also permits extensionless relative import
 that is now a convention with teeth, not a style preference. The alternative (a
 hand-written declaration re-stating pptxgenjs's API surface) duplicates a third-party
 interface and drifts; this is one config line and no duplication.
+
+---
+
+## 8. Template as data (2026-09-11)
+
+**Problem.** The deck's shape was hardcoded: `LayoutId` as a union, slot geometry in
+`src/layout/spec.ts`, the slide order in `src/deck/build.ts`. That is a template in
+everything but name — and because it lived in TypeScript, a new one meant editing code.
+"We want a different deck shape" is a *content* request, not a software change.
+
+**Decision: the template is data.** `templates/weekly.template.json` is the single
+shipped template and the canonical definition. `src/deck/build.ts` is now an
+interpreter over it, and `src/layout/spec.ts` is deleted.
+
+A `DeckTemplate` has three parts:
+
+- **`theme`** — colours, fonts, type scale, grid, canvas.
+- **`layouts`** — named slot boxes. Each slot declares a `role` (drives font size), a
+  **grid** rect (`col`/`row`/`colSpan`/`rowSpan`), and `accepts` (block kinds).
+- **`skeleton`** — ordered steps, each naming a layout, optionally `repeat: "per-day"`
+  and `when: has-themes | has-risks | has-next-week | has-evidence`, plus `fill` per slot.
+
+**Slots are grid coordinates, not inches.** That is what makes a template
+resolution-independent: change `theme.grid` and every layout re-flows without editing a
+single slot. Rects are computed at resolve time via `cellRect`.
+
+**The fill vocabulary is closed on purpose.** `fill.kind` may recombine data the pipeline
+already computes — `metrics`, `agenda`, `day-items`, `themes`, `risks`, `next-week`,
+`evidence`, `summary`, `window-label`, `deck-title`, `day-heading`, `text` — but it
+cannot introduce a new source. A generated template can rearrange and restyle the week;
+it cannot invent its contents. Slot `accepts` is checked against what each fill produces,
+so `evidence` into a `text` slot fails at parse time.
+
+**Validation is a boundary, not a lint.** `parseTemplate` takes `unknown` and returns a
+typed template or throws `TemplateError` with a JSON path:
+
+```
+skeleton[3].fill.heading: slot "heading" accepts [text] but fill "evidence" produces "evidence"
+```
+
+Path-addressed messages matter because the likely author of a new template is a model,
+and a model receiving "invalid template" cannot fix it.
+
+**AI generation is supported from day one:**
+
+```bash
+node src/cli.ts --dump-template > my.template.json   # resolved default, as a base
+node src/cli.ts --repo <path> --template my.template.json -y
+```
+
+The IR embeds the full template, so an emitted deck is self-describing and re-renderable
+without the template file.
+
+**Verified equivalence.** Re-expressing the hardcoded layout as data produced a
+byte-identical PDF text extraction on a real 18-commit week — the refactor changed the
+mechanism, not the output.
+
+### 8.1 Adopted from `reference.md`
+
+The reference agent (`repo_vibe_agent.py`) contributed the exploration model:
+
+- **Explore before narrating.** Its tools (`list_commits`, `show_commit`, `read_file`,
+  `list_tree`, `search_code`) let the model investigate rather than guess from subject
+  lines. Adopted: the decktective agent now digs into diffs when a subject is
+  uninformative, with explicit budget discipline.
+- **One structured exit.** Its `record_deck` tool is the only success path, validated
+  before the loop ends. Ours is the `--narrative` path plus `assertFactLocked`.
+- **Loop guards** — a hard iteration cap and duplicate-call detection.
+
+**Not adopted, because we are already stricter:** the reference has no fact-lock (a model
+can assert any number), no text measurement or overflow gate, no glyph-coverage check,
+and its window handling is naive dates rather than a half-open interval in a declared
+timezone. Its output is `deck_spec.json` only; rendering is left to a separate step.
+
+---
+
+## 9. Pipeline and pluggable models (2026-09-11)
+
+**The flow** (from `reference1.md`):
+
+```
+local git / public git  ->  fetch activity        src/sources/git.ts
+                        ->  normalize           (model, deterministic fallback)
+                        ->  group work items    src/work/workitems.ts
+                        ->  analyze             (model, deterministic fallback)
+                        ->  articulate          src/work/pipeline.ts
+                        ->  review & validate   src/work/review.ts  <-- loops back
+                        ->  build report        src/deck/build.ts
+                        ->  generate PPT        src/render/* | src/pptx/*
+```
+
+### 9.1 Source is git, not the GitHub API
+
+Activity comes from **local or public git** — a clone, not the REST API. That keeps the
+tool working with no token, no rate limit, and no network beyond the clone. The cost is
+explicit: **PR/MR numbers are not recoverable from git**, so `[#142] [#88]` in the
+template stays a placeholder and is reported as a known gap rather than guessed at.
+
+### 9.2 Pluggable models
+
+`LlmProvider` is the only thing stages know about. Two wire protocols cover everything:
+
+| Protocol | Covers |
+|---|---|
+| `openai` (`/chat/completions`) | OpenAI, **CommandCode**, OpenRouter, Together, vLLM, … |
+| `anthropic` (`/messages`) | Claude |
+
+Adding a vendor is one entry in `KNOWN_PROVIDERS` (base URL + the env var holding its
+key). `--llm <provider>/<model>` selects one; the model half passes through untouched,
+so any model a gateway serves works without a code change. With no key configured the
+provider resolves to `OfflineProvider` and every stage takes its deterministic path.
+
+### 9.3 The fact-lock survives the model
+
+The obvious risk of putting a model in five stages is invention. The mitigation is
+structural rather than prompt-based:
+
+- **A model decides grouping and naming; code computes every number.** `WorkItem`
+  aggregates are derived from the referenced commits in `materialize()`.
+- **A fabricated SHA is dropped, never rendered**, and reported.
+- **Work cannot silently disappear**: commits the model failed to assign are folded into
+  an "Other changes" item, so coverage is total.
+- **`assertFactLocked` still gates the prose**, so an invented figure fails review.
+
+### 9.4 Review & validate uses the upstream package
+
+Per `reference1.md`, the review stage loops back to normalization when the draft does not
+align with <https://github.com/ayghri/i-have-adhd>.
+
+That package is a **communication-style contract** (lead with the action, cap visible
+lists at five, no preamble or closers, errors as cause + fix). It is **consumed, not
+reimplemented**: `src/style/contract.ts` resolves the package's own `SKILL.md` —
+explicit `--style`, else the skill installed at `.omp/skills/i-have-adhd/SKILL.md`, else
+upstream cached on disk — and passes the text to the reviewer **verbatim**. A local
+paraphrase would drift from upstream and quietly start enforcing a spec nobody maintains.
+
+The gate has two halves, deliberately different in kind:
+
+- **Style** is a judgement, so it goes to the model with the contract text. It returns
+  JSON (`aligned`, `violations`, `guidance`).
+- **Facts** are immutable, so they are verified in code. A model never blesses a number.
+
+`--install-style` fetches the package into `.omp/skills/` so the harness discovers it as
+a skill and the agent path uses it directly too.
+
+### 9.5 Always degrade loudly
+
+The loop is bounded (`--attempts`, default 3). Three failure modes are distinguished
+rather than conflated:
+
+| Situation | Behaviour |
+|---|---|
+| Draft violates the contract | Retry with the returned guidance, up to the cap; report what remains |
+| The model call fails (provider error, empty body) | Fall back to the deterministic path and **say so** |
+| The gate itself cannot run | Keep the draft, set `reviewSkipped` — "we did not check" is not "we checked" |
+
+**Provider quirk, found the hard way** (`src/llm/provider.ts`): on CommandCode with a
+reasoning model, `response_format: json_object` *combined with a system prompt* makes the
+model spend its entire `max_tokens` on reasoning and return `finish_reason: "length"` with
+**empty content**. Measured:
+
+```
+system + json_object  -> finish=length, content=""        reasoning=1500/1500
+system, no json flag  -> finish=stop,   content=1064 chars reasoning=687
+```
+
+The prompt already demands JSON, so the provider now retries once without the flag. Budgets
+were also raised: reasoning tokens bill against `max_tokens`, and a budget sized for the
+answer alone truncates the JSON mid-string.

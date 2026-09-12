@@ -12,7 +12,11 @@ import { TemplateNarrative } from "./narrative/template.ts";
 import { assertFactLocked, allowedNumbers, extractNumbers, InventedNumberError } from "./narrative/validate.ts";
 import { buildDeck } from "./deck/build.ts";
 import { resolvePlan, OverflowError, MissingGlyphError } from "./layout/resolve.ts";
-import { DEFAULT_THEME } from "./theme.ts";
+import { loadDefaultTemplate } from "./template/load.ts";
+
+// The shipped template is the contract these tests exercise.
+const TEMPLATE = await loadDefaultTemplate();
+const THEME = TEMPLATE.theme;
 import { measureCtx, missingGlyphs } from "./measure.ts";
 import type { DayEntry, Narrative, Window } from "./ir/types.ts";
 
@@ -118,7 +122,7 @@ test("the template engine never invents numbers across varied input", async () =
 test("a deck built from real facts resolves to a plan", () => {
   const f = facts();
   const n = { days: [], themes: [], summary: "", risks: [], nextWeek: [] };
-  const ir = buildDeck(f, n, WINDOW);
+  const ir = buildDeck(f, n, WINDOW, TEMPLATE);
   const plan = resolvePlan(ir);
   assert.ok(plan.slides.length >= 3);
   assert.ok(plan.slides.every((s) => s.ops.length > 0), "every slide draws something");
@@ -128,7 +132,7 @@ test("text that cannot fit its slot throws instead of clipping", () => {
   const huge = "word ".repeat(4000);
   const ir = {
     meta: { title: "T", week: "2026-W37", tz: WINDOW.tz, generatedAt: "2026-09-11T00:00:00+07:00" },
-    theme: DEFAULT_THEME,
+    template: TEMPLATE,
     slides: [{
       layout: "bullets" as const,
       title: "Overflow",
@@ -144,7 +148,7 @@ test("text that cannot fit its slot throws instead of clipping", () => {
 test("a block placed in an incompatible slot is rejected", () => {
   const ir = {
     meta: { title: "T", week: "2026-W37", tz: WINDOW.tz, generatedAt: "2026-09-11T00:00:00+07:00" },
-    theme: DEFAULT_THEME,
+    template: TEMPLATE,
     slides: [{
       layout: "metrics" as const,
       title: "Bad",
@@ -158,7 +162,7 @@ test("bullets autofit rather than overflow when they nearly fit", () => {
   const items = Array.from({ length: 7 }, (_, i) => `Item number ${i + 1} with a few words`);
   const ir = {
     meta: { title: "T", week: "2026-W37", tz: WINDOW.tz, generatedAt: "2026-09-11T00:00:00+07:00" },
-    theme: DEFAULT_THEME,
+    template: TEMPLATE,
     slides: [{
       layout: "bullets" as const,
       title: "Fit",
@@ -171,15 +175,15 @@ test("bullets autofit rather than overflow when they nearly fit", () => {
   const plan = resolvePlan(ir);
   const op = plan.slides[0]?.ops.find((o) => o.op === "bullets");
   assert.ok(op, "bullets op present");
-  if (op.op === "bullets") assert.ok(op.sizePt <= DEFAULT_THEME.type.bodyPt);
+  if (op.op === "bullets") assert.ok(op.sizePt <= THEME.type.bodyPt);
 });
 
 test("a character the font cannot draw fails the build as tofu, not text", () => {
   // U+2192 is absent from the bundled Inter latin subset (glyph id 0).
-  assert.ok(missingGlyphs(measureCtx(DEFAULT_THEME.fonts.regular, DEFAULT_THEME.fonts.bold), "a \u2192 b").length > 0);
+  assert.ok(missingGlyphs(measureCtx(THEME.fonts.regular, THEME.fonts.bold), "a \u2192 b").length > 0);
   const ir = {
     meta: { title: "T", week: "2026-W37", tz: WINDOW.tz, generatedAt: "2026-09-11T00:00:00+07:00" },
-    theme: DEFAULT_THEME,
+    template: TEMPLATE,
     slides: [{
       layout: "title" as const,
       title: "Tofu",
@@ -200,8 +204,8 @@ test("every character the deck actually emits is drawable", () => {
   // Guards the shipped string constants: dashes, middots, ellipsis, bullets.
   const f = facts();
   const n = { days: [], themes: [], summary: "", risks: [], nextWeek: [] };
-  const plan = resolvePlan(buildDeck(f, n, WINDOW));
-  const ctx = measureCtx(DEFAULT_THEME.fonts.regular, DEFAULT_THEME.fonts.bold);
+  const plan = resolvePlan(buildDeck(f, n, WINDOW, TEMPLATE));
+  const ctx = measureCtx(THEME.fonts.regular, THEME.fonts.bold);
   for (const slide of plan.slides) {
     for (const op of slide.ops) {
       if (op.op === "text") assert.deepEqual(missingGlyphs(ctx, op.text), [], `text op: ${op.text}`);
@@ -215,13 +219,13 @@ test("every character the deck actually emits is drawable", () => {
 test("the plan carries one background rect per slide", () => {
   const f = facts();
   const n = { days: [], themes: [], summary: "", risks: [], nextWeek: [] };
-  const plan = resolvePlan(buildDeck(f, n, WINDOW));
+  const plan = resolvePlan(buildDeck(f, n, WINDOW, TEMPLATE));
   for (const s of plan.slides) {
     const first = s.ops[0];
     assert.ok(first && first.op === "rect", "background painted first");
     if (first.op === "rect") {
       assert.equal(first.rect.xIn, 0);
-      assert.equal(first.rect.wIn, DEFAULT_THEME.canvas.widthIn);
+      assert.equal(first.rect.wIn, THEME.canvas.widthIn);
     }
   }
 });

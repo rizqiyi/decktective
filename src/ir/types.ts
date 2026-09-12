@@ -25,6 +25,12 @@ export type ItemKind =
 export type DayItem = {
   /** Human-readable, already-articulated. Never raw `wip`. */
   text: string;
+  /**
+   * The commit message body, when the author wrote one. Often the only place
+   * the *why* of a change is recorded, so it is the raw material a model
+   * articulates a work item summary from.
+   */
+  body?: string;
   kind: ItemKind;
   /** Commit SHAs / PR ids backing this item. Kept for traceability. */
   refs?: string[];
@@ -64,8 +70,53 @@ export type DayEntry = {
   items: DayItem[];
   metrics: DayMetrics;
   profile?: DayProfile;
-  /** Non-fatal problems: shallow clone, author/committer divergence, excluded paths. */
+  /** Per-day problems: author/committer divergence, excluded paths. Repo-level
+   * issues come from `SourceAdapter.diagnostics` instead. */
   warnings?: string[];
+};
+
+// ---------------------------------------------------------------------------
+// Work items
+// ---------------------------------------------------------------------------
+
+export type WorkItemImpact = "Major" | "Medium" | "Small";
+export type WorkItemStatus = "Done" | "In progress" | "Blocked";
+
+/**
+ * A coherent piece of work spanning one or more commits, days, or repos.
+ *
+ * This is the unit a reader thinks in ("the sidebar redesign"), as opposed to a
+ * commit. Grouping is semantic and may be model-assisted, but every NUMBER here
+ * is computed from the referenced commits — a model chooses which commits
+ * belong together and what to call them, never how much they changed.
+ */
+export type WorkItem = {
+  /** Stable id derived from the first ref, so it survives re-runs. */
+  id: string;
+  title: string;
+  type: ItemKind;
+  /** sourceIds this work touched. */
+  repos: string[];
+  /** Commit SHAs backing the item — the traceability anchor. */
+  refs: string[];
+  days: IsoDate[];
+  additions: number;
+  deletions: number;
+  files: number;
+  impact: WorkItemImpact;
+  status: WorkItemStatus;
+  /** One-line description of what changed. */
+  summary?: string;
+};
+
+/** What a model may decide about a work item; everything else is computed. */
+export type WorkItemDraft = {
+  title: string;
+  type: ItemKind;
+  refs: string[];
+  /** One or two sentences, articulated from the commits themselves. */
+  summary?: string;
+  status?: WorkItemStatus;
 };
 
 // ---------------------------------------------------------------------------
@@ -125,6 +176,12 @@ export interface SourceAdapter {
   readonly id: string;
   readonly kind: "git" | "manual";
   collect(window: Window, opts?: CollectOpts): Promise<DayEntry[]>;
+  /**
+   * Repo-level problems that apply regardless of the window, e.g. a shallow
+   * clone. Kept separate from per-day warnings because an empty window would
+   * otherwise swallow them — which is exactly when they matter most.
+   */
+  diagnostics?(opts?: CollectOpts): Promise<string[]>;
 }
 
 // ---------------------------------------------------------------------------
@@ -211,6 +268,88 @@ export type DeckMeta = {
 
 export type DeckIR = {
   meta: DeckMeta;
-  theme: Theme;
+  /**
+   * The template that produced this deck. Carried in the IR so a deck is
+   * self-describing: it can be re-rendered without the template file, and two
+   * runs of the same template are byte-comparable.
+   */
+  template: DeckTemplate;
   slides: Slide[];
+};
+
+// ---------------------------------------------------------------------------
+// Template
+// ---------------------------------------------------------------------------
+
+export type SlotRole =
+  | "title" | "heading" | "body" | "caption" | "metrics" | "evidence" | "hero";
+
+/**
+ * A layout slot, expressed in GRID coordinates rather than inches.
+ *
+ * Grid coordinates keep templates resolution-independent: the same template
+ * renders at any canvas size, and changing the theme's grid re-flows every
+ * layout without editing slots.
+ */
+export type SlotSpec = {
+  key: string;
+  role: SlotRole;
+  col: number;
+  row: number;
+  colSpan: number;
+  rowSpan: number;
+  /** Block kinds this slot may receive. Anything else fails the build. */
+  accepts: Array<Block["kind"]>;
+};
+
+export type LayoutSpec = {
+  id: LayoutId;
+  slots: SlotSpec[];
+};
+
+/**
+ * Where a slot's content comes from. Small on purpose: every kind maps to
+ * something the pipeline already computes, so a generated template can only
+ * recombine real data — it cannot invent a new data source.
+ */
+export type FillSpec =
+  | { kind: "text"; text: string; emphasis?: "normal" | "muted" | "accent" }
+  | { kind: "deck-title" }
+  | { kind: "window-label" }
+  | { kind: "summary" }
+  | { kind: "agenda" }
+  | { kind: "metrics" }
+  | { kind: "per-day-breakdown" }
+  | { kind: "day-heading" }
+  | { kind: "day-items" }
+  | { kind: "themes" }
+  | { kind: "risks" }
+  | { kind: "next-week" }
+  | { kind: "evidence" };
+
+/** Emit this step once per active day instead of once per deck. */
+export type StepRepeat = "per-day";
+
+export type StepWhen =
+  | "always" | "has-themes" | "has-risks" | "has-next-week" | "has-evidence";
+
+export type TemplateStep = {
+  /** Stable id — used in errors and to make diffs readable. */
+  id: string;
+  layout: LayoutId;
+  /** Supports `{date}`, `{profile}`, `{week}`, `{page}`. */
+  title?: string;
+  repeat?: StepRepeat;
+  when?: StepWhen;
+  fill: Record<string, FillSpec>;
+};
+
+export type DeckTemplate = {
+  id: string;
+  name: string;
+  version: number;
+  theme: Theme;
+  layouts: LayoutSpec[];
+  /** Ordered slide plan. Optional steps are dropped when their data is empty. */
+  skeleton: TemplateStep[];
 };
