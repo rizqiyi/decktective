@@ -78,7 +78,9 @@ function buildArgs(params: DeckParams): string[] {
   const args = ["--repo", params.repo, "--out", params.out ?? "out", "-y"];
   if (params.start !== undefined) args.push("--start", params.start);
   if (params.end !== undefined) args.push("--end", params.end);
-  if (params.preset !== undefined) args.push("--preset", params.preset);
+  // With -y and no window the CLI would fall through to its own default; state
+  // it here so the behaviour is explicit and the echoed range is predictable.
+  args.push("--preset", params.preset ?? "this");
   if (params.title !== undefined) args.push("--title", params.title);
   if (params.tz !== undefined) args.push("--tz", params.tz);
   if (params.template !== undefined) {
@@ -93,7 +95,11 @@ export default function decktective(pi: {
   setLabel(label: string): void;
   registerTool(def: Record<string, unknown>): void;
   registerCommand(name: string, def: Record<string, unknown>): void;
-  zod: { object(shape: Record<string, unknown>): unknown; string(): unknown; boolean(): unknown };
+  zod: {
+    object(shape: Record<string, unknown>): unknown;
+    string(): { optional(): unknown };
+    boolean(): { optional(): unknown };
+  };
 }) {
   pi.setLabel("Decktective");
 
@@ -105,17 +111,22 @@ export default function decktective(pi: {
       "template. Provide the repo (URL, owner/repo, or local path) and either a " +
       "--preset like 'this'/'last' or explicit ISO start/end instants WITH an offset. " +
       "Returns the path of the generated deck.",
+    // ONLY `repo` is required. Everything else is a legitimate omission: a
+    // caller may give a preset OR start+end, and the rest have sane defaults.
+    // Declaring them required makes the tool reject every normal call — which
+    // is exactly what shipped in 0.1.4/0.1.5, because the schema was never
+    // exercised (the test's zod stub did not validate).
     parameters: pi.zod.object({
       repo: pi.zod.string(),
-      preset: pi.zod.string(),
-      start: pi.zod.string(),
-      end: pi.zod.string(),
-      out: pi.zod.string(),
-      title: pi.zod.string(),
-      template: pi.zod.string(),
-      tz: pi.zod.string(),
-      offline: pi.zod.boolean(),
-      llm: pi.zod.string(),
+      preset: pi.zod.string().optional(),
+      start: pi.zod.string().optional(),
+      end: pi.zod.string().optional(),
+      out: pi.zod.string().optional(),
+      title: pi.zod.string().optional(),
+      template: pi.zod.string().optional(),
+      tz: pi.zod.string().optional(),
+      offline: pi.zod.boolean().optional(),
+      llm: pi.zod.string().optional(),
     }),
     async execute(
       _toolCallId: string,
