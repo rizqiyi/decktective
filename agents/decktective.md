@@ -24,6 +24,7 @@ it locates everything from its own package, so it works in any directory.
 | `out` | no | "put it in ~/Desktop" | default `out` in the working directory |
 | `title` | no | "call it Sprint 42" | default: the template's name |
 | `tz` | no | only if the user names one | default `Asia/Jakarta` |
+| `branch` | no | "the release branch", "on develop" | default: the repo HEAD |
 | `template` | no | "use our corporate template" | omit to use the served template |
 | `offline` | no | "don't use a model" / no provider key | deterministic, nothing leaves the machine |
 | `llm` | no | "use glm" / "use claude" | `provider/model` |

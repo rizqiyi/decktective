@@ -49,6 +49,8 @@ export class GitSource {
     async collect(window, opts) {
         const exclude = opts?.exclude ?? [];
         const branch = opts?.branch;
+        if (branch !== undefined)
+            await this.assertRef(branch);
         // Density probes only count commits; the churn pass is the expensive half.
         const commitsOnly = opts?.commitsOnly === true;
         const flags = [`--since=${window.start}`, `--until=${window.end}`];
@@ -193,6 +195,31 @@ export class GitSource {
             out.push("whitespace-only changes suppressed (-w)");
         }
         return out;
+    }
+    /**
+     * Fail early with the available refs.
+     *
+     * `git log <typo>` reports "unknown revision or path not in the working tree",
+     * which reads like a missing checkout rather than a bad branch name.
+     */
+    async assertRef(ref) {
+        try {
+            await this.git(["rev-parse", "--verify", "--quiet", `${ref}^{commit}`], "UTC");
+            return;
+        }
+        catch {
+            // fall through to the listing below
+        }
+        let available = "";
+        try {
+            const out = await this.git(["branch", "-a", "--format=%(refname:short)"], "UTC");
+            available = out.split("\n").map((l) => l.trim()).filter((l) => l !== "").slice(0, 20).join(", ");
+        }
+        catch {
+            available = "(could not list branches)";
+        }
+        throw new Error(`--branch ${JSON.stringify(ref)} is not a branch, tag or ref in this repository` +
+            (available === "" ? "" : `\n  available: ${available}`));
     }
     async isShallow() {
         try {

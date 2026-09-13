@@ -212,6 +212,7 @@ A model cannot read a `.pptx`, so it is given a **shape outline** instead — sh
 | `--preset this\|last\|4w` | Relative window |
 | `--start` / `--end` | Explicit ISO instants; `--end` is exclusive |
 | `--tz <zone>` | IANA timezone. Default `Asia/Jakarta` |
+| `--branch <ref>` | Branch, tag or ref to walk. Default: the repo HEAD |
 | `--out <dir>` | Output directory. Default `out` |
 | `--title <text>` | Deck title |
 | `--exclude <prefixes>` | Path **prefixes** removed from churn (not globs) |

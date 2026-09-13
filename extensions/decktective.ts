@@ -65,6 +65,7 @@ type DeckParams = {
   start?: string;
   end?: string;
   preset?: string;
+  branch?: string;
   out?: string;
   title?: string;
   template?: string;
@@ -81,6 +82,7 @@ function buildArgs(params: DeckParams): string[] {
   // With -y and no window the CLI would fall through to its own default; state
   // it here so the behaviour is explicit and the echoed range is predictable.
   args.push("--preset", params.preset ?? "this");
+  if (params.branch !== undefined) args.push("--branch", params.branch);
   if (params.title !== undefined) args.push("--title", params.title);
   if (params.tz !== undefined) args.push("--tz", params.tz);
   // DEFAULT TO THE SERVED TEMPLATE.
@@ -129,6 +131,7 @@ export default function decktective(pi: {
     parameters: pi.zod.object({
       repo: pi.zod.string(),
       preset: pi.zod.string().optional(),
+      branch: pi.zod.string().optional(),
       start: pi.zod.string().optional(),
       end: pi.zod.string().optional(),
       out: pi.zod.string().optional(),

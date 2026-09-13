@@ -65,6 +65,7 @@ type Args = {
   templateOutline?: boolean;
   learnTemplate?: boolean;
   manifest?: string;
+  branch?: string;
   dumpTemplate?: boolean;
 };
 
@@ -96,6 +97,7 @@ function parseArgs(argv: string[]): Args {
       case "--template-outline": a.templateOutline = true; break;
       case "--learn-template": a.learnTemplate = true; break;
       case "--manifest": a.manifest = v; i++; break;
+      case "--branch": a.branch = v; i++; break;
       case "--dump-template": a.dumpTemplate = true; break;
       case "--pptx-only": a.pdf = false; break;
       case "--pdf-only": a.pptx = false; break;
@@ -120,6 +122,9 @@ function usage(): void {
   --start <iso>      explicit window start (ISO 8601 with offset)
   --end <iso>        explicit window end (exclusive)
   --tz <zone>        IANA timezone (default Asia/Jakarta)
+  --branch <ref>     branch, tag or ref to walk. Default: the
+                     repository HEAD. Useful for a release branch or
+                     when work never merged to the default branch.
   --out <dir>        output directory (default ./out)
   --title <text>     deck title
   --exclude <paths>  comma-separated path PREFIXES (not globs) to exclude
@@ -335,7 +340,11 @@ async function main(): Promise<void> {
   } finally {
     prompts.rl.close();
   }
-  const collectOpts = { exclude: args.exclude, detectRenames: true };
+  const collectOpts = {
+    exclude: args.exclude,
+    detectRenames: true,
+    ...(args.branch === undefined ? {} : { branch: args.branch }),
+  };
   const days = await source.collect(window, collectOpts);
   const totalCommits = days.reduce((a, d) => a + d.metrics.commits, 0);
   console.log(`Collected ${totalCommits} commits across ${days.length} day(s).`);
