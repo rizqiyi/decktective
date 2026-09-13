@@ -83,8 +83,18 @@ function buildArgs(params: DeckParams): string[] {
   args.push("--preset", params.preset ?? "this");
   if (params.title !== undefined) args.push("--title", params.title);
   if (params.tz !== undefined) args.push("--tz", params.tz);
-  if (params.template !== undefined) {
-    args.push("--pptx-template", params.template === "served" ? TEMPLATE : params.template);
+  // DEFAULT TO THE SERVED TEMPLATE.
+  //
+  // Omitting `template` previously added no --pptx-template flag, which sent the
+  // CLI down the generated-slides path — a completely different deck from the
+  // corporate template, and not what the agent's own instructions promise
+  // ("omit to use the served template"). The tell was the output filename:
+  // template fill writes `<stem>_filled.pptx`, generation writes `<stem>.pptx`.
+  //
+  // "none" opts out explicitly; anything else is treated as a template path.
+  const which = params.template ?? "served";
+  if (which !== "none") {
+    args.push("--pptx-template", which === "served" ? TEMPLATE : which);
   }
   if (params.offline === true) args.push("--offline");
   if (params.llm !== undefined) args.push("--llm", params.llm);
