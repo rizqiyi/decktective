@@ -73,6 +73,12 @@ Echo it back:
 
 ## Step 4 — Build it
 
+**Use the tool. Never build the command yourself.** It sets `--pptx-template` for
+you; a hand-written `node src/cli.ts ...` without that flag silently takes the
+generated-slides path and produces a different deck — a tell is the filename
+(`<date>_filled.pptx` means the template was filled). If a tool call is rejected,
+read the validation error and fix the arguments; do not switch to running the CLI.
+
 Call the `decktective` tool with the resolved parameters, e.g.:
 
 ```json
