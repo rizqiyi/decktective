@@ -107,18 +107,85 @@ The deck skeleton: cover → overview → **one slide per active day** → highl
 
 ## Models
 
-Optional. Without one, every stage is deterministic.
+Optional. With a key set, the model groups commits into work items and writes the
+narrative. With none, every stage falls back to a deterministic path — and the
+deck still builds, so a **blank or sparse deck on a new machine is almost always
+a missing key or an empty window, not a broken install.**
+
+### Set a key
+
+Add one to your shell profile, then open a new terminal:
 
 ```bash
-# CommandCode gateway (glm, grok, deepseek, qwen, kimi, gpt)
-node src/cli.ts --repo . --preset this --llm commandcode/deepseek/deepseek-v4-flash -y
+# CommandCode gateway — glm, grok, deepseek, qwen, kimi, gpt
+echo 'export COMMANDCODE_API_KEY=sk-...' >> ~/.zshrc
 
-# Others
+# or OpenAI
+echo 'export OPENAI_API_KEY=sk-...' >> ~/.zshrc
+
+# or Anthropic
+echo 'export ANTHROPIC_API_KEY=sk-ant-...' >> ~/.zshrc
+
+source ~/.zshrc
+```
+
+Verify it is visible:
+
+```bash
+printenv COMMANDCODE_API_KEY | head -c 8; echo "…"
+```
+
+### Pick a model
+
+```bash
+node src/cli.ts --repo . --preset this --llm commandcode/deepseek/deepseek-v4-flash -y
 node src/cli.ts --repo . --preset this --llm openai/gpt-5 -y
 node src/cli.ts --repo . --preset this --llm anthropic/claude-sonnet-5 -y
 ```
 
-Keys come from the environment: `COMMANDCODE_API_KEY`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`. With none set it runs offline automatically.
+| Provider | Key env var | Example `--llm` |
+|---|---|---|
+| CommandCode | `COMMANDCODE_API_KEY` | `commandcode/deepseek/deepseek-v4-flash` |
+| OpenAI | `OPENAI_API_KEY` | `openai/gpt-5` |
+| Anthropic | `ANTHROPIC_API_KEY` | `anthropic/claude-sonnet-5` |
+
+With no key set, the tool runs offline automatically — nothing leaves the machine.
+
+### CommandCode model IDs
+
+The gateway wants the **bare** model id, with no provider prefix:
+
+```
+deepseek/deepseek-v4-flash     ✅   (not commandcode/deepseek/…)
+z-ai/glm-5.3-flash             ✅
+xai/grok-4.5                   ✅
+```
+
+The `--llm` value's first path segment is the provider name; everything after it
+is passed to that provider untouched. To list what a gateway actually serves:
+
+```bash
+curl -sS https://api.commandcode.ai/provider/v1/models \
+  -H "Authorization: Bearer $COMMANDCODE_API_KEY" | head -40
+```
+
+### Adding a gateway
+
+One entry in `KNOWN_PROVIDERS` in `src/llm/provider.ts` — a base URL, a wire
+protocol (`openai` covers any OpenAI-compatible gateway), and the env var holding
+its key.
+
+### If the deck comes out empty
+
+1. **No commits in the window.** The tool says `no activity in the window`. Ask
+   for a week that has commits — a repo with 2025 history asked for "this week"
+   in 2026 is legitimately empty.
+2. **A private repo failed to clone.** Look for a clone error; the tool names the
+   URL it could not reach.
+3. **No key set**, so the narrative is deterministic and terse — install a key
+   above for the full version.
+4. **Wrong timezone.** `--tz` governs day bucketing; the wrong zone can move
+   commits out of the window.
 
 ## Templates
 
