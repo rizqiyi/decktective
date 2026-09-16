@@ -28,9 +28,11 @@ import { isoWeekLabel } from "./deck/build.ts";
 import {
   learnManifest, loadManifest, saveManifest, manifestCachePath,
 } from "./pptx/manifest.ts";
-import { resolveProvider, isLive, OfflineProvider } from "./llm/provider.ts";
+import { resolveProvider, isLive, OfflineProvider, type LlmProvider } from "./llm/provider.ts";
 import { runPipeline } from "./work/pipeline.ts";
-import { loadStyleContract, installStyleSkill, STYLE_SKILL_NAME } from "./style/contract.ts";
+import {
+  loadStyleContract, installStyleSkill, STYLE_SKILL_NAME, type StyleContract,
+} from "./style/contract.ts";
 import { outlineToPrompt } from "./pptx/outline.ts";
 import { resolvePlan } from "./layout/resolve.ts";
 import { writePptx } from "./render/pptx.ts";
@@ -68,6 +70,7 @@ type Args = {
   branch?: string;
   all?: boolean;
   includeMerges?: boolean;
+  verbose?: boolean;
   dumpTemplate?: boolean;
 };
 
@@ -102,6 +105,7 @@ function parseArgs(argv: string[]): Args {
       case "--branch": a.branch = v; i++; break;
       case "--all": a.all = true; break;
       case "--include-merges": a.includeMerges = true; break;
+      case "--verbose": case "-v": a.verbose = true; break;
       case "--dump-template": a.dumpTemplate = true; break;
       case "--pptx-only": a.pdf = false; break;
       case "--pdf-only": a.pptx = false; break;
@@ -179,6 +183,8 @@ function usage(): void {
   --pptx-only        skip PDF
   --pdf-only         skip PPTX
   -y, --yes          never prompt; use the default window (this week)
+  -v, --verbose      show the pipeline: stage timings, every model call,
+                     the grouped work items, and each review verdict
   -h, --help         show this message`);
 }
 
@@ -265,6 +271,55 @@ async function chooseWindow(args: Args, src: GitSource, prompts: Prompts): Promi
     return isoWeekWindow(args.tz, new Date(`${answer}T00:00:00Z`));
   }
   throw new Error(`unrecognised window selection: ${answer}`);
+}
+
+/** Verbose trace: every line is prefixed so it is greppable and skippable. */
+function makeTrace(enabled: boolean): (message: string) => void {
+  return enabled ? (m) => console.log(`  \u00b7 ${m}`) : () => {};
+}
+
+/** Time one stage and report it. Keeps `--verbose` honest about where time goes. */
+async function stage<T>(
+  trace: (m: string) => void,
+  label: string,
+  fn: () => T | Promise<T>,
+): Promise<T> {
+  const started = Date.now();
+  trace(`${label} \u2026`);
+  try {
+    const out = await fn();
+    trace(`${label} \u2014 ${Date.now() - started}ms`);
+    return out;
+  } catch (err) {
+    trace(`${label} \u2014 failed after ${Date.now() - started}ms`);
+    throw err;
+  }
+}
+
+/**
+ * Wrap a provider so every model call is visible.
+ *
+ * Model calls are the slow, costly, occasionally-failing part of a run, and
+ * without this the only sign of one is a pause.
+ */
+function tracingProvider(inner: LlmProvider, trace: (m: string) => void): LlmProvider {
+  return {
+    id: inner.id,
+    model: inner.model,
+    async complete(req) {
+      const chars = req.prompt.length + (req.system?.length ?? 0);
+      trace(`llm ${inner.id}/${inner.model} \u2190 ${chars} chars${req.json === true ? " (json)" : ""}`);
+      const started = Date.now();
+      try {
+        const out = await inner.complete(req);
+        trace(`llm ${inner.model} \u2192 ${out.length} chars in ${Date.now() - started}ms`);
+        return out;
+      } catch (err) {
+        trace(`llm ${inner.model} \u2717 ${err instanceof Error ? err.message.slice(0, 120) : String(err)}`);
+        throw err;
+      }
+    },
+  };
 }
 
 async function main(): Promise<void> {
@@ -380,22 +435,29 @@ async function main(): Promise<void> {
   // Group commits into work items. With a model this is semantic ("the sidebar
   // redesign"); offline it falls back to grouping by kind. Either way every
   // number is computed from the commits, never from the model.
-  const provider = args.offline ? new OfflineProvider() : resolveProvider(
+  const trace = makeTrace(args.verbose === true);
+  trace(`repo: ${repoPath}${repo.cloned ? " (cloned)" : repo.fetched ? " (refreshed)" : " (local)"}`);
+  trace(`window: ${window.start} .. ${window.end}  tz=${window.tz}`);
+
+  const baseProvider = args.offline ? new OfflineProvider() : resolveProvider(
     args.llm === undefined ? {} : { spec: args.llm });
+  const provider = tracingProvider(baseProvider, trace);
+  trace(`model: ${isLive(baseProvider) ? `${baseProvider.id}/${baseProvider.model}` : "offline (deterministic)"}`);
   // Style contract is only needed when a model will actually judge against it.
-  let contract;
+  let contract: StyleContract | undefined;
   if (isLive(provider)) {
     contract = await loadStyleContract({
       ...(args.style === undefined ? {} : { path: args.style }),
       ...(args.offline ? { offline: true } : {}),
     });
   }
-  const pipeline = await runPipeline(days, {
-    provider,
-    window,
-    ...(contract === undefined ? {} : { contract }),
-    ...(args.attempts === undefined ? {} : { maxAttempts: args.attempts }),
-  });
+  const pipeline = await stage(trace, "pipeline (group \u2192 articulate \u2192 review)", () =>
+    runPipeline(days, {
+      provider,
+      window,
+      ...(contract === undefined ? {} : { contract }),
+      ...(args.attempts === undefined ? {} : { maxAttempts: args.attempts }),
+    }));
   console.log(
     `Grouped ${days.reduce((a, d) => a + d.items.length, 0)} item(s) into ` +
     `${pipeline.workItems.length} work item(s)` +
@@ -412,6 +474,16 @@ async function main(): Promise<void> {
     console.log(`  note: ${pipeline.reviewSkipped}`);
   }
   if (pipeline.attempts > 1) console.log(`  review loop: ${pipeline.attempts} attempt(s)`);
+  for (const h of pipeline.history) {
+    trace(`review attempt ${h.attempt}: ${h.violations.length === 0 ? "aligned" : `${h.violations.length} violation(s)`}`);
+    for (const v of h.violations) trace(`    [${v.rule}] ${v.where}: ${v.detail.slice(0, 90)}`);
+  }
+  if (args.verbose === true) {
+    trace(`work items (${pipeline.workItems.length}):`);
+    for (const w of pipeline.workItems) {
+      trace(`    ${w.impact.padEnd(6)} ${w.type.padEnd(9)} ${String(w.refs.length).padStart(2)} refs  ${w.title.slice(0, 56)}`);
+    }
+  }
   if (pipeline.violations.length > 0) {
     console.log(`  warn: ${pipeline.violations.length} contract violation(s) remain:`);
     for (const v of pipeline.violations) console.log(`    [${v.rule}] ${v.where}: ${v.detail}`);
@@ -490,7 +562,11 @@ async function main(): Promise<void> {
   const ir = buildDeck(days, narrative, window, template, { title: args.title });
 
   // Resolve layout once; emitters are dumb translators of the plan.
-  const plan = resolvePlan(ir);
+  const plan = await stage(trace, `resolve layout (${ir.slides.length} slides)`, () => resolvePlan(ir));
+  if (args.verbose === true) {
+    const ops = plan.slides.reduce((n, s) => n + s.ops.length, 0);
+    trace(`plan: ${plan.slides.length} slides, ${ops} draw ops`);
+  }
   const stem = `${dateInZone(window.tz, new Date(window.start))}_${ir.meta.week}`;
   await writeFile(
     resolve(args.out, `${stem}.json`),
@@ -499,12 +575,12 @@ async function main(): Promise<void> {
 
   if (args.pptx) {
     const p = resolve(args.out, `${stem}.pptx`);
-    await writePptx(plan, p);
+    await stage(trace, `emit pptx`, () => writePptx(plan, p));
     console.log(`wrote ${p}`);
   }
   if (args.pdf) {
     const p = resolve(args.out, `${stem}.pdf`);
-    await writePdf(plan, p);
+    await stage(trace, `emit pdf`, () => writePdf(plan, p));
     console.log(`wrote ${p}`);
   }
   console.log(`wrote ${resolve(args.out, `${stem}.json`)} (IR)`);

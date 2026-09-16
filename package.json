@@ -1,6 +1,6 @@
 {
   "name": "decktective",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "type": "module",
   "description": "Build a weekly activity deck (PPTX) from a git repository by filling a .pptx template.",
   "engines": {
