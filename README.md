@@ -213,6 +213,9 @@ A model cannot read a `.pptx`, so it is given a **shape outline** instead — sh
 | `--start` / `--end` | Explicit ISO instants; `--end` is exclusive |
 | `--tz <zone>` | IANA timezone. Default `Asia/Jakarta` |
 | `--branch <ref>` | Branch, tag or ref to walk. Default: the repo HEAD |
+| `--all` | Walk **every** ref instead of one line of history |
+| `--include-merges` | Count merge commits too |
+| `-v`, `--verbose` | Show the pipeline: stage timings, every model call, the grouped work items, each review verdict |
 | `--out <dir>` | Output directory. Default `out` |
 | `--title <text>` | Deck title |
 | `--exclude <prefixes>` | Path **prefixes** removed from churn (not globs) |
@@ -226,6 +229,45 @@ A model cannot read a `.pptx`, so it is given a **shape outline** instead — sh
 | `-y`, `--yes` | Never prompt; use the default window |
 
 Template mode emits **PPTX only** — producing PDF from a `.pptx` would need LibreOffice, which this project does not depend on.
+
+### Seeing the work
+
+```bash
+decktective --repo . --preset this --verbose -y
+```
+
+```
+  · repo: . (local)
+  · window: 2026-09-14T00:00:00+07:00 .. 2026-09-21T00:00:00+07:00  tz=Asia/Jakarta
+  · model: commandcode/deepseek/deepseek-v4-flash
+  · pipeline (group → articulate → review) …
+  · llm commandcode/deepseek/deepseek-v4-flash ← 1885 chars (json)
+  · llm deepseek/deepseek-v4-flash → 565 chars in 8757ms
+  · llm commandcode/deepseek/deepseek-v4-flash ← 8314 chars (json)
+  · llm deepseek/deepseek-v4-flash → 545 chars in 11944ms
+  · review attempt 1: aligned
+  · work items (8):
+  ·     High   feat      3 refs  Export pipeline moved off the main thread
+  · resolve layout (10 slides) — 34ms
+  · plan: 10 slides, 52 draw ops
+  · emit pptx — 21ms
+  · emit pdf — 42ms
+```
+
+Model calls are the slow, costly, occasionally-failing part of a run — without this, the only sign of one is a pause. The review call dominates: on a real repo it took ~12s of a ~50s run at 8.3k prompt chars.
+
+### Repos whose default branch is merge-only
+
+If `master` only receives merges and the work lives on feature branches, the default walk reports **0 commits** — it uses `--first-parent --no-merges`, which cannot see that shape:
+
+| Flags | Sees |
+|---|---|
+| *(default)* | 1 of 4 — first-parent, non-merge only |
+| `--include-merges` | 2 of 4 — the merge commits too |
+| `--all` | 3 of 4 — every non-merge commit across all refs |
+| `--all --include-merges` | 4 of 4 — everything (`git rev-list --count --all`) |
+
+`--all` drops `--first-parent`, which is meaningless across refs and would hide the very work it exists to surface.
 
 ## Development
 

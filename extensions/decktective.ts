@@ -68,6 +68,7 @@ type DeckParams = {
   branch?: string;
   all?: boolean;
   includeMerges?: boolean;
+  verbose?: boolean;
   out?: string;
   title?: string;
   template?: string;
@@ -87,6 +88,7 @@ function buildArgs(params: DeckParams): string[] {
   if (params.branch !== undefined) args.push("--branch", params.branch);
   if (params.all === true) args.push("--all");
   if (params.includeMerges === true) args.push("--include-merges");
+  if (params.verbose === true) args.push("--verbose");
   if (params.title !== undefined) args.push("--title", params.title);
   if (params.tz !== undefined) args.push("--tz", params.tz);
   // DEFAULT TO THE SERVED TEMPLATE.
@@ -138,6 +140,7 @@ export default function decktective(pi: {
       branch: pi.zod.string().optional(),
       all: pi.zod.boolean().optional(),
       includeMerges: pi.zod.boolean().optional(),
+      verbose: pi.zod.boolean().optional(),
       start: pi.zod.string().optional(),
       end: pi.zod.string().optional(),
       out: pi.zod.string().optional(),

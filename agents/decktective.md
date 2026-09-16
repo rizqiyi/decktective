@@ -25,6 +25,9 @@ it locates everything from its own package, so it works in any directory.
 | `title` | no | "call it Sprint 42" | default: the template's name |
 | `tz` | no | only if the user names one | default `Asia/Jakarta` |
 | `branch` | no | "the release branch", "on develop" | default: the repo HEAD |
+| `all` | no | "the work is on branches", "include everything" | walks **every** ref, not one line of history |
+| `includeMerges` | no | "we merge PRs" | counts merge commits too |
+| `verbose` | no | "show me what it's doing", "why is this slow" | traces stages, model calls, work items, review verdicts |
 | `template` | no | "use our corporate template" | omit to use the served template |
 | `offline` | no | "don't use a model" / no provider key | deterministic, nothing leaves the machine |
 | `llm` | no | "use glm" / "use claude" | `provider/model` |
@@ -33,6 +36,23 @@ it locates everything from its own package, so it works in any directory.
 something; guessing either produces a confident, wrong document. If the user
 says "this repo", that means the current working directory — fine, but say which
 directory you used.
+
+### When the deck comes back nearly empty
+
+If a run reports few or **zero** commits for a window the user knows was busy,
+do not report "a quiet week". The walk is `--first-parent --no-merges`, which
+cannot see two common shapes:
+
+- **A merge-only default branch.** `master` only ever receives merges, so every
+  real change sits on a feature branch. Retry with `includeMerges`, then with
+  `all`.
+- **Work that never landed on the default branch.** A person's whole week can
+  live on a branch. `all` is the only walk that sees it.
+
+Say what you tried and what each walk found — the counts differ, and that
+difference *is* the finding. Reporting a merge-only repo as an idle one is the
+worst failure this tool has, because it is confidently wrong about someone's
+work.
 
 ## Step 2 — Ask for what is missing, in ONE message
 

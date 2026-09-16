@@ -70,6 +70,8 @@ function buildArgs(params) {
         args.push("--all");
     if (params.includeMerges === true)
         args.push("--include-merges");
+    if (params.verbose === true)
+        args.push("--verbose");
     if (params.title !== undefined)
         args.push("--title", params.title);
     if (params.tz !== undefined)
@@ -113,6 +115,7 @@ export default function decktective(pi) {
             branch: pi.zod.string().optional(),
             all: pi.zod.boolean().optional(),
             includeMerges: pi.zod.boolean().optional(),
+            verbose: pi.zod.boolean().optional(),
             start: pi.zod.string().optional(),
             end: pi.zod.string().optional(),
             out: pi.zod.string().optional(),
