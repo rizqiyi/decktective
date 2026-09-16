@@ -56,9 +56,17 @@ export class GitSource {
         const flags = [`--since=${window.start}`, `--until=${window.end}`];
         if (opts?.includeMerges !== true)
             flags.push("--no-merges");
-        // A weekly report covers the default branch, not everything merged into it.
-        flags.push("--first-parent");
-        const revision = branch === undefined ? [] : [branch];
+        const all = opts?.all === true;
+        if (all) {
+            // --first-parent is meaningless across many refs, and with --no-merges it
+            // would hide exactly the merge-only work --all exists to surface.
+            flags.push("--all");
+        }
+        else {
+            // A weekly report covers one line of history, not everything merged in.
+            flags.push("--first-parent");
+        }
+        const revision = all || branch === undefined ? [] : [branch];
         const churnFlags = [...flags];
         if (opts?.detectRenames === true)
             churnFlags.push("-M");

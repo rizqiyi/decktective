@@ -161,6 +161,15 @@ export type CollectOpts = {
   /** Path prefixes to exclude from churn, e.g. `dist/`, `bun.lock`. */
   exclude?: string[];
   includeMerges?: boolean;
+  /**
+   * Walk EVERY ref instead of one line of history (`git log --all`).
+   *
+   * Some workflows keep the default branch merge-only and put the real work on
+   * feature branches. With --first-parent + --no-merges such a repo reports zero
+   * commits for the week, which reads as "nobody worked" rather than "this tool
+   * cannot see it". --all is the honest answer for those repos.
+   */
+  all?: boolean;
   detectRenames?: boolean;
   /** Suppress whitespace-only changes (`git -w`). Reported, never silent. */
   ignoreWhitespace?: boolean;

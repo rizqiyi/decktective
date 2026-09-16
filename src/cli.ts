@@ -66,6 +66,8 @@ type Args = {
   learnTemplate?: boolean;
   manifest?: string;
   branch?: string;
+  all?: boolean;
+  includeMerges?: boolean;
   dumpTemplate?: boolean;
 };
 
@@ -98,6 +100,8 @@ function parseArgs(argv: string[]): Args {
       case "--learn-template": a.learnTemplate = true; break;
       case "--manifest": a.manifest = v; i++; break;
       case "--branch": a.branch = v; i++; break;
+      case "--all": a.all = true; break;
+      case "--include-merges": a.includeMerges = true; break;
       case "--dump-template": a.dumpTemplate = true; break;
       case "--pptx-only": a.pdf = false; break;
       case "--pdf-only": a.pptx = false; break;
@@ -125,6 +129,12 @@ function usage(): void {
   --branch <ref>     branch, tag or ref to walk. Default: the
                      repository HEAD. Useful for a release branch or
                      when work never merged to the default branch.
+  --all              walk EVERY ref instead of one line of history. Use it when
+                     the default branch is merge-only and the work lives on
+                     feature branches; without it such a repo reports 0 commits.
+  --include-merges   count merge commits too. Needed to see a PR-per-change
+                     workflow on the default branch (merge-only history is
+                     invisible under the default --no-merges).
   --out <dir>        output directory (default ./out)
   --title <text>     deck title
   --exclude <paths>  comma-separated path PREFIXES (not globs) to exclude
@@ -344,6 +354,8 @@ async function main(): Promise<void> {
     exclude: args.exclude,
     detectRenames: true,
     ...(args.branch === undefined ? {} : { branch: args.branch }),
+    ...(args.all ? { all: true } : {}),
+    ...(args.includeMerges ? { includeMerges: true } : {}),
   };
   const days = await source.collect(window, collectOpts);
   const totalCommits = days.reduce((a, d) => a + d.metrics.commits, 0);

@@ -66,6 +66,10 @@ function buildArgs(params) {
     args.push("--preset", params.preset ?? "this");
     if (params.branch !== undefined)
         args.push("--branch", params.branch);
+    if (params.all === true)
+        args.push("--all");
+    if (params.includeMerges === true)
+        args.push("--include-merges");
     if (params.title !== undefined)
         args.push("--title", params.title);
     if (params.tz !== undefined)
@@ -107,6 +111,8 @@ export default function decktective(pi) {
             repo: pi.zod.string(),
             preset: pi.zod.string().optional(),
             branch: pi.zod.string().optional(),
+            all: pi.zod.boolean().optional(),
+            includeMerges: pi.zod.boolean().optional(),
             start: pi.zod.string().optional(),
             end: pi.zod.string().optional(),
             out: pi.zod.string().optional(),
